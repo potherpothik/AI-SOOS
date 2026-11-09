@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 from alembic.config import Config
@@ -10,20 +11,20 @@ from app.config import Settings
 from app.cost import anomaly_task_ids, choose_route, clip_lines, compress_prompt, summarize
 from app.db import init_db, make_engine, make_session_factory, session_scope
 from app.delivery import build_pr_body, parse_github_repo, pull_request_call
-from app.errors import BudgetExceeded, GateBlocked
+from app.errors import GateBlocked
 from app.factory import approve_task, start_task
 from app.gates import contract_gaps, failed_checks
 from app.ledger import charge
 from app.main import create_app
 from app.maintenance import merge_request, propose_update
-from app.memory import query_memory
+from app.memory import index_workspace, query_memory
 from app.models import UsageRecord
 from app.paths import repo_root
 from app.registry import create_project
-from app.review import ReviewFinding
+from app.review import ReviewFinding, review_diff
 from app.runner import visual_check
 from app.sbom import generate_sbom
-from app.security_runner import dynamic_scan_allowed, scan_workspace
+from app.security_runner import ScanFinding, dynamic_scan_allowed, scan_workspace
 from app.state import FactoryState, initial_state
 from app.teams import effective_policy, perform_deploy, role_can
 from app.workflow import route_verify, transition
@@ -88,7 +89,7 @@ def test_retries_stop_after_the_policy_limit() -> None:
     assert repair == "repairing"
 
 
-def test_model_generation_names_the_missing_key(tmp_path: Path) -> None:
+def test_blank_model_key_generates_from_the_template(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     application = create_app(settings)
     application.state.workspace_root = tmp_path / "work"
@@ -102,8 +103,10 @@ def test_model_generation_names_the_missing_key(tmp_path: Path) -> None:
         f"/projects/{created.json()['id']}/generate",
         json={"brief": "Build a health endpoint.", "mode": "model"},
     )
-    assert response.status_code == 400
-    assert response.json()["missing"] == "AISOOS_MODEL_API_KEY"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "spec"
+    assert body["missing"] == ""
 
 
 def test_template_run_reaches_an_approved_pull_request(tmp_path: Path) -> None:
@@ -202,25 +205,25 @@ def test_untrusted_code_is_refused_without_a_microvm() -> None:
         assert_isolation("local", True)
 
 
-def test_charge_stops_at_the_token_budget(tmp_path: Path) -> None:
+def test_charge_is_stored_without_a_budget_cap(tmp_path: Path) -> None:
     _settings_obj, factory = _factory(tmp_path)
     limits = load_budgets()
     with session_scope(factory) as session:
         project = create_project(session, organization="local", name="demo", owner="ada", actor_role="owner")
-        with pytest.raises(BudgetExceeded) as caught:
-            charge(
-                session,
-                limits,
-                project_id=project.id,
-                task_id="t",
-                model="test",
-                input_tokens=limits.input_tokens + 1,
-                output_tokens=1,
-                usd=0.1,
-                prompt="hello",
-                prompt_cache=False,
-            )
-        assert caught.value.limit == "input_tokens"
+        record = charge(
+            session,
+            limits,
+            project_id=project.id,
+            task_id="t",
+            model="test",
+            input_tokens=limits.input_tokens + 1,
+            output_tokens=1,
+            usd=1000.0,
+            prompt="hello",
+            prompt_cache=False,
+        )
+        assert record.input_tokens == limits.input_tokens + 1
+        assert record.usd == 1000.0
 
 
 def test_release_gate_and_contract() -> None:
@@ -464,3 +467,143 @@ def test_spend_anomaly_is_three_times_the_median() -> None:
 
     flagged = anomaly_task_ids([row("1", "low", 1.0), row("2", "mid", 1.0), row("3", "high", 10.0)])
     assert flagged == ["high"]
+
+
+def test_scan_returns_to_repair_only_while_a_rewrite_is_requested() -> None:
+    repair = transition(_blank(status="scanning", rewrite=True, retries=0, max_retries=2))
+    onward = transition(_blank(status="scanning", rewrite=False, retries=2, max_retries=2))
+    assert repair["status"] == "repairing"
+    assert onward["status"] == "awaiting_approval"
+
+
+def test_large_diff_is_a_note() -> None:
+    long_diff = "\n".join(f"+line {number}" for number in range(121))
+    noted = review_diff(long_diff)
+    assert any(item.severity == "low" and item.message == "large diff" for item in noted)
+    assert review_diff("+ok\n") == []
+
+
+def test_missing_security_binaries_are_notes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.security_runner.security_binary", lambda _name: None)
+    findings = scan_workspace(tmp_path, False)
+    notes = {item.source: item.severity for item in findings}
+    assert notes["gitleaks"] == "low"
+    assert notes["trivy"] == "low"
+
+
+def test_factory_source_does_not_read_a_skill_file() -> None:
+    app = repo_root() / "services" / "platform-api" / "app"
+    text = "\n".join(path.read_text(encoding="utf-8") for path in sorted(app.rglob("*.py")))
+    assert "SKILL.md" not in text
+    assert "graphify install" not in text
+    assert "specify init" not in text
+
+
+def test_memory_reindexes_the_project(tmp_path: Path) -> None:
+    _settings_obj, factory = _factory(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "service.py").write_text("def health():\n    return {}\n", encoding="utf-8")
+    with session_scope(factory) as session:
+        project = create_project(session, organization="local", name="demo", owner="ada", actor_role="owner")
+        index_workspace(session, project.id, workspace)
+        (workspace / "service.py").write_text("def status():\n    return {}\n", encoding="utf-8")
+        index_workspace(session, project.id, workspace)
+        symbols = {item.symbol for item in query_memory(session, project.id, "status health")}
+        assert "status" in symbols
+        assert "health" not in symbols
+
+
+def test_model_sees_the_graph_query_and_repairs_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    prompts: list[str] = []
+    scans = {"n": 0}
+
+    def fake_tool(name: str) -> str | None:
+        if name == "graphify":
+            return "/usr/bin/graphify"
+        return None
+
+    def fake_run(argv: list[str], cwd: Path, timeout: int, env: dict[str, str] | None = None) -> CompletedProcess[str]:
+        del timeout, env
+        if argv[1] == "extract":
+            out = Path(cwd) / "graphify-out"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "graph.json").write_text("{}", encoding="utf-8")
+            return CompletedProcess(argv, 0, stdout="extracted", stderr="")
+        if argv[1] == "query":
+            return CompletedProcess(argv, 0, stdout="GRAPH_QUERY health", stderr="")
+        if argv[1] == "god-nodes":
+            return CompletedProcess(argv, 0, stdout='[{"label": "health"}]', stderr="")
+        return CompletedProcess(argv, 0, stdout="", stderr="")
+
+    def fake_completion(**kwargs: object) -> object:
+        messages = kwargs["messages"]
+        assert isinstance(messages, list)
+        prompt = str(messages[0]["content"])
+        prompts.append(prompt)
+        content = json.dumps({"service.py": "def health():\n    return {'status': 'ok'}\n"})
+        message = type("Message", (), {"content": content})()
+        choice = type("Choice", (), {"message": message})()
+        usage = type("Usage", (), {"prompt_tokens": 12, "completion_tokens": 4})()
+        return type("Response", (), {"choices": [choice], "usage": usage})()
+
+    def fake_scan(workspace: Path, run_semgrep: bool) -> list[ScanFinding]:
+        del workspace, run_semgrep
+        scans["n"] += 1
+        if scans["n"] == 1:
+            return [ScanFinding("semgrep", "high", 1, "eval is not allowed in generated code")]
+        return []
+
+    monkeypatch.setattr("app.context.tool_path", fake_tool)
+    monkeypatch.setattr("app.context.run_tool", fake_run)
+    monkeypatch.setattr("app.context.compress_prompt", lambda text, enabled, compressor=None: text)
+    monkeypatch.setattr("app.gateway.litellm.completion", fake_completion)
+    monkeypatch.setattr("app.effects.scan_workspace", fake_scan)
+    monkeypatch.setattr("app.effects.run_tests", lambda _workspace: (True, "passed"))
+
+    settings = Settings(
+        environment="test",
+        database_url=f"sqlite+pysqlite:///{tmp_path / 'aisoos.db'}",
+        model_api_key="test-key",
+        model_name="test-model",
+        github_token="",
+        run_semgrep=False,
+        workspace_backend="local",
+    )
+    _ignored, factory = _factory(tmp_path)
+    with session_scope(factory) as session:
+        project = create_project(session, organization="local", name="demo", owner="ada", actor_role="owner")
+        task = start_task(
+            session,
+            settings,
+            project_id=project.id,
+            brief="Build a health endpoint.",
+            template="api-service",
+            mode="model",
+            actor="ada",
+            actor_role="owner",
+            idempotency_key=None,
+            workspace_root=tmp_path / "work",
+        )
+        finished = approve_task(
+            session,
+            settings,
+            task_id=task.id,
+            kind="spec",
+            approver="ada",
+            approver_role="owner",
+            workspace_root=tmp_path / "work",
+        )
+        loaded = json.loads(finished.state_json)
+        assert finished.status == "awaiting_approval"
+        assert loaded["retries"] == 1
+        assert loaded["missing"] == "AISOOS_GITHUB_TOKEN"
+        assert len(prompts) == 2
+        assert "GRAPH_QUERY health" in prompts[0]
+        assert "eval is not allowed in generated code" in prompts[1]
+        workspace = tmp_path / "work" / task.id
+        assert "health" in (workspace / "DESIGN.md").read_text(encoding="utf-8")
+        models = {row.model for row in session.scalars(select(UsageRecord)).all()}
+        assert "context-full" in models
+        assert "graphify-query" in models
+

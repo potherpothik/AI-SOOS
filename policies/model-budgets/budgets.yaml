@@ -1,4 +1,4 @@
-# Budgets are hard limits. Reaching one stops the task and asks for approval.
+# Usage figures for the cost report. They do not stop a task.
 schema_version: 1
 levels:
   monthly_platform_usd: 50

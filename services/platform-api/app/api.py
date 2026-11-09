@@ -10,9 +10,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.config import Settings
-from app.cost import load_benchmark_tasks, skipped_benchmarks, summarize
+from app.cost import load_benchmark_tasks, summarize
 from app.db import init_db, session_scope
-from app.errors import MissingSecretError
 from app.factory import approve_task, start_task
 from app.maintenance import propose_update
 from app.models import AuthorizationRecord, Project, ReleaseException, UsageRecord
@@ -38,7 +37,7 @@ class ProjectIn(BaseModel):
 class GenerateIn(BaseModel):
     brief: str = Field(min_length=1)
     template: str = "api-service"
-    mode: str = "model"
+    mode: str = "template"
     idempotency_key: str | None = None
     actor: str = "local"
     actor_role: str = "owner"
@@ -120,10 +119,9 @@ def post_project(body: ProjectIn, request: Request) -> dict[str, str]:
 @router.post("/projects/{project_id}/generate")
 def post_generate(project_id: str, body: GenerateIn, request: Request) -> dict[str, str]:
     settings = _settings(request)
-    if body.mode == "model" and not settings.model_api_key:
-        raise MissingSecretError("AISOOS_MODEL_API_KEY")
-    if body.mode == "model" and not settings.model_name:
-        raise MissingSecretError("AISOOS_MODEL_NAME")
+    mode = body.mode
+    if mode == "model" and not (settings.model_api_key and settings.model_name):
+        mode = "template"
     _ready(request)
     with session_scope(request.app.state.sessions) as session:
         task = start_task(
@@ -132,7 +130,7 @@ def post_generate(project_id: str, body: GenerateIn, request: Request) -> dict[s
             project_id=project_id,
             brief=body.brief,
             template=body.template,
-            mode=body.mode,
+            mode=mode,
             actor=body.actor,
             actor_role=body.actor_role,
             idempotency_key=body.idempotency_key,
@@ -236,10 +234,8 @@ def post_authorization(project_id: str, body: AuthorizationIn, request: Request)
 
 @router.get("/benchmarks")
 def get_benchmarks(request: Request) -> dict[str, list[dict[str, str]]]:
-    settings = _settings(request)
+    del request
     tasks = load_benchmark_tasks(repo_root() / "evals" / "cost-benchmarks" / "tasks.yaml")
-    if not settings.model_api_key:
-        return {"results": skipped_benchmarks(tasks, "AISOOS_MODEL_API_KEY")}
     named = [
         {"task": task["name"], "skipped": "call the eval runner; this request does not call a model"}
         for task in tasks

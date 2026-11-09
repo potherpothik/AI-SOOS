@@ -11,8 +11,17 @@ from sqlalchemy.orm import Session
 from app.agent import CodingAgent
 from app.budgets import BudgetLimits
 from app.config import Settings
-from app.errors import BudgetExceeded, MissingSecretError
-from app.ledger import charge, wall_clock_exceeded
+from app.context import (
+    append_hubs,
+    asvs_rules,
+    finding_text,
+    graph_query,
+    parse_file_map,
+    record_context,
+    workspace_text,
+)
+from app.errors import MissingSecretError
+from app.ledger import charge
 from app.models import Finding, Repository, UsageRecord
 from app.paths import repo_root
 from app.process import run_tool, tool_path
@@ -38,11 +47,69 @@ def _workspace(state: FactoryState) -> Path:
     return Path(state["workspace"])
 
 
+def _model_ready(state: FactoryState, ctx: EffectContext) -> bool:
+    return state["mode"] == "model" and bool(ctx.settings.model_api_key and ctx.settings.model_name)
+
+
+def _has_product(workspace: Path) -> bool:
+    return any((workspace / name).exists() for name in ("service.py", "agent.py", "index.html"))
+
+
+def _copy_template(state: FactoryState, workspace: Path) -> int:
+    source = repo_root() / "templates" / state["template"]
+    agent = CodingAgent(workspace)
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            agent.write(path.relative_to(source).as_posix(), path.read_text(encoding="utf-8"))
+    return agent.tool_calls
+
+
+def _refresh_context(state: FactoryState, ctx: EffectContext) -> str:
+    workspace = _workspace(state)
+    query = graph_query(workspace, state["brief"])
+    compressed = record_context(
+        ctx.session,
+        ctx.budgets,
+        state,
+        workspace_text(workspace),
+        query,
+        ctx.settings.prompt_cache,
+    )
+    append_hubs(workspace)
+    return compressed
+
+
+def _coding_prompt(state: FactoryState, ctx: EffectContext, graph_text: str) -> str:
+    from app.memory import query_memory
+
+    hits = query_memory(ctx.session, state["project_id"], state["brief"])
+    memory = "\n".join(f"{item.path}:{item.symbol}" for item in hits)
+    findings = finding_text(ctx.session, state["task_id"], state["test_output"])
+    return (
+        f"{asvs_rules()}\n\n"
+        f"Findings:\n{findings}\n\n"
+        f"Memory:\n{memory}\n\n"
+        f"Context:\n{graph_text}\n\n"
+        f"Brief:\n{state['brief']}\n\n"
+        "Reply with a JSON object mapping a relative path to file contents.\n"
+    )
+
+
+def _write_reply(workspace: Path, reply: str) -> int:
+    files = parse_file_map(reply)
+    if not files:
+        return 0
+    agent = CodingAgent(workspace)
+    for path, content in files.items():
+        try:
+            agent.write(path, content)
+        except PermissionError:
+            continue
+    return agent.tool_calls
+
+
 def _guard(state: FactoryState, ctx: EffectContext) -> None:
-    if wall_clock_exceeded(state["started_at"], ctx.budgets.wall_clock_minutes):
-        raise BudgetExceeded("wall_clock_minutes")
-    if state["tool_calls"] > state["max_tool_calls"]:
-        raise BudgetExceeded("tool_calls")
+    del state, ctx
 
 
 def _record_zero_cost(ctx: EffectContext, state: FactoryState) -> None:
@@ -96,20 +163,24 @@ def effect_workspace(state: FactoryState, ctx: EffectContext) -> FactoryState:
 
 def effect_coding(state: FactoryState, ctx: EffectContext) -> FactoryState:
     _guard(state, ctx)
-    if state["mode"] == "model":
+    workspace = _workspace(state)
+    if not _model_ready(state, ctx) and not _has_product(workspace):
+        state["tool_calls"] += _copy_template(state, workspace)
+    graph_text = _refresh_context(state, ctx)
+    if _model_ready(state, ctx):
         from app.gateway import complete
 
-        complete(ctx.session, ctx.settings, ctx.budgets, state)
-    workspace = _workspace(state)
-    if (workspace / "service.py").exists() or (workspace / "agent.py").exists() or (workspace / "index.html").exists():
-        return state
-    source = repo_root() / "templates" / state["template"]
-    agent = CodingAgent(workspace)
-    for path in sorted(source.rglob("*")):
-        if path.is_file():
-            agent.write(path.relative_to(source).as_posix(), path.read_text(encoding="utf-8"))
-    state["tool_calls"] += agent.tool_calls
-    _record_zero_cost(ctx, state)
+        reply = complete(ctx.session, ctx.settings, ctx.budgets, state, _coding_prompt(state, ctx, graph_text))
+        written = _write_reply(workspace, reply)
+        state["tool_calls"] += written
+        if written:
+            _refresh_context(state, ctx)
+            return state
+    if not _has_product(workspace):
+        state["tool_calls"] += _copy_template(state, workspace)
+        _refresh_context(state, ctx)
+    elif not _model_ready(state, ctx):
+        _record_zero_cost(ctx, state)
     return state
 
 
@@ -139,7 +210,11 @@ def effect_reviewing(state: FactoryState, ctx: EffectContext) -> FactoryState:
     _store_findings(ctx, state["task_id"], "review", findings)
     high = any(item.severity == "high" for item in findings)
     state["review_ok"] = not high
-    state["blockers"] = ["review"] if high else []
+    state["rewrite"] = high and _model_ready(state, ctx) and state["retries"] < state["max_retries"]
+    blockers = [item for item in state["blockers"] if item != "review"]
+    if high:
+        blockers.append("review")
+    state["blockers"] = blockers
     return state
 
 
@@ -149,6 +224,7 @@ def effect_scanning(state: FactoryState, ctx: EffectContext) -> FactoryState:
     _store_findings(ctx, state["task_id"], "scan", findings)
     high = any(item.severity == "high" for item in findings)
     state["scan_ok"] = not high
+    state["rewrite"] = high and _model_ready(state, ctx) and state["retries"] < state["max_retries"]
     blockers = [item for item in state["blockers"] if item != "scan"]
     if high:
         blockers.append("scan")
@@ -196,17 +272,12 @@ def effect_awaiting(state: FactoryState, ctx: EffectContext) -> FactoryState:
 def effect_delivered(state: FactoryState, ctx: EffectContext) -> FactoryState:
     from app.ledger import mark_accepted
     from app.memory import index_workspace
-    from app.models import MemoryEntry
 
     mark_accepted(ctx.session, state["task_id"])
     if not ctx.session.scalars(select(UsageRecord).where(UsageRecord.task_id == state["task_id"])).first():
         _record_zero_cost(ctx, state)
         mark_accepted(ctx.session, state["task_id"])
-    already = ctx.session.scalars(
-        select(MemoryEntry).where(MemoryEntry.project_id == state["project_id"])
-    ).first()
-    if already is None:
-        index_workspace(ctx.session, state["project_id"], _workspace(state))
+    index_workspace(ctx.session, state["project_id"], _workspace(state))
     return state
 
 

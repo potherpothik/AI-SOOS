@@ -31,7 +31,9 @@ def run_tests(workspace: Path) -> tuple[bool, str]:
 def workspace_diff(workspace: Path) -> str:
     lines: list[str] = []
     for path in sorted(workspace.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts or path.name.startswith("."):
+        if not path.is_file() or {"__pycache__", "graphify-out", ".git", ".scan"}.intersection(path.parts):
+            continue
+        if path.name.startswith("."):
             continue
         relative = path.relative_to(workspace)
         lines.append(f"+++ {relative}")

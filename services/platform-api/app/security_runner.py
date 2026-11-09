@@ -26,7 +26,7 @@ class ScanFinding:
 def pattern_scan(workspace: Path) -> list[ScanFinding]:
     findings: list[ScanFinding] = []
     for path in sorted(workspace.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts:
+        if not path.is_file() or {"__pycache__", "graphify-out", ".git", ".scan"}.intersection(path.parts):
             continue
         if path.suffix not in {".py", ".md", ".txt", ".yaml", ".yml", ".html", ".env"}:
             continue
@@ -50,6 +50,8 @@ def semgrep_scan(workspace: Path) -> list[ScanFinding]:
             "off",
             "--config",
             str(rules),
+            "--exclude",
+            "graphify-out",
             "--json",
             "--quiet",
             str(workspace),
@@ -80,10 +82,105 @@ def semgrep_scan(workspace: Path) -> list[ScanFinding]:
     return findings
 
 
+def security_binary(name: str) -> str | None:
+    bundled = repo_root() / ".tools" / name
+    if bundled.is_file():
+        return str(bundled)
+    return tool_path(name)
+
+
+def _missing(name: str) -> ScanFinding:
+    return ScanFinding(name, "low", 0, f"{name} is not installed")
+
+
+def gitleaks_scan(workspace: Path) -> list[ScanFinding]:
+    binary = security_binary("gitleaks")
+    if binary is None:
+        return [_missing("gitleaks")]
+    report = workspace / ".scan" / "gitleaks.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    completed = run_tool(
+        [
+            binary,
+            "detect",
+            "--source",
+            str(workspace),
+            "--no-git",
+            "--report-format",
+            "json",
+            "--report-path",
+            str(report),
+            "--exit-code",
+            "0",
+        ],
+        workspace,
+        timeout=60,
+    )
+    del completed
+    if not report.is_file() or not report.read_text(encoding="utf-8").strip():
+        return [ScanFinding("gitleaks", "low", 0, "gitleaks produced no report")]
+    try:
+        payload = json.loads(report.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return [ScanFinding("gitleaks", "low", 0, "gitleaks produced no report")]
+    if not isinstance(payload, list):
+        return [ScanFinding("gitleaks", "low", 0, "gitleaks produced no report")]
+    findings: list[ScanFinding] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        findings.append(
+            ScanFinding(
+                "gitleaks",
+                "high",
+                int(item.get("StartLine", 1) or 1),
+                str(item.get("Description", "secret")),
+            )
+        )
+    return findings
+
+
+def trivy_scan(workspace: Path) -> list[ScanFinding]:
+    binary = security_binary("trivy")
+    if binary is None:
+        return [_missing("trivy")]
+    completed = run_tool(
+        [binary, "fs", "--scanners", "vuln", "--format", "json", "--quiet", str(workspace)],
+        workspace,
+        timeout=90,
+    )
+    if not completed.stdout.strip():
+        return [ScanFinding("trivy", "low", 0, "trivy produced no report")]
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return [ScanFinding("trivy", "low", 0, "trivy produced no report")]
+    findings: list[ScanFinding] = []
+    results = payload.get("Results", []) if isinstance(payload, dict) else []
+    if not isinstance(results, list):
+        return findings
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        vulnerabilities = result.get("Vulnerabilities", [])
+        if not isinstance(vulnerabilities, list):
+            continue
+        for item in vulnerabilities:
+            if not isinstance(item, dict):
+                continue
+            severity = str(item.get("Severity", "LOW")).upper()
+            rank = "high" if severity in {"HIGH", "CRITICAL"} else "low"
+            label = str(item.get("VulnerabilityID", "vulnerability"))
+            findings.append(ScanFinding("trivy", rank, 1, label))
+    return findings
+
+
 def scan_workspace(workspace: Path, run_semgrep: bool) -> list[ScanFinding]:
     findings = pattern_scan(workspace)
     if run_semgrep:
         findings.extend(semgrep_scan(workspace))
+    findings.extend(gitleaks_scan(workspace))
+    findings.extend(trivy_scan(workspace))
     return findings
 
 

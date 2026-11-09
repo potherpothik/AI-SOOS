@@ -30,6 +30,18 @@ def route_verify(state: FactoryState) -> str:
     return "repairing"
 
 
+def route_review(state: FactoryState) -> str:
+    if state["rewrite"]:
+        return "repairing"
+    return "scanning"
+
+
+def route_scan(state: FactoryState) -> str:
+    if state["rewrite"]:
+        return "repairing"
+    return "awaiting_approval"
+
+
 def transition(state: FactoryState) -> FactoryState:
     status = state["status"]
     graph: StateGraph[FactoryState] = StateGraph(FactoryState)
@@ -71,11 +83,21 @@ def transition(state: FactoryState) -> FactoryState:
         destination("coding")
         graph.add_edge("repairing", "coding")
     elif status == "reviewing":
-        destination("scanning")
-        graph.add_edge("reviewing", "scanning")
+        for name in ("scanning", "repairing"):
+            destination(name)
+        graph.add_conditional_edges(
+            "reviewing",
+            route_review,
+            {"scanning": "scanning", "repairing": "repairing"},
+        )
     elif status == "scanning":
-        destination("awaiting_approval")
-        graph.add_edge("scanning", "awaiting_approval")
+        for name in ("awaiting_approval", "repairing"):
+            destination(name)
+        graph.add_conditional_edges(
+            "scanning",
+            route_scan,
+            {"awaiting_approval": "awaiting_approval", "repairing": "repairing"},
+        )
     elif status == "awaiting_approval":
         destination("delivered")
         graph.add_conditional_edges(

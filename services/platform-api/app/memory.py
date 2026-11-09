@@ -24,10 +24,15 @@ def git_head(workspace: Path) -> str:
 
 
 def index_workspace(session: Session, project_id: str, workspace: Path) -> list[MemoryEntry]:
+    previous = session.scalars(select(MemoryEntry).where(MemoryEntry.project_id == project_id)).all()
+    for row in previous:
+        session.delete(row)
     commit = git_head(workspace)
     entries: list[MemoryEntry] = []
     for path in sorted(workspace.rglob("*")):
-        if not path.is_file() or "__pycache__" in path.parts or path.suffix not in {".py", ".md"}:
+        if not path.is_file() or path.suffix not in {".py", ".md"}:
+            continue
+        if {"__pycache__", "graphify-out", ".git", ".scan"}.intersection(path.parts):
             continue
         text = path.read_text(encoding="utf-8")
         symbols = _SYMBOL.findall(text) or [path.stem]

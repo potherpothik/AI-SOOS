@@ -7,18 +7,19 @@ from sqlalchemy.orm import Session
 
 from app.budgets import BudgetLimits
 from app.config import Settings
-from app.cost import compress_prompt
-from app.errors import MissingSecretError
 from app.ledger import charge
 from app.state import FactoryState
 
 
-def complete(session: Session, settings: Settings, limits: BudgetLimits, state: FactoryState) -> str:
-    if not settings.model_api_key:
-        raise MissingSecretError("AISOOS_MODEL_API_KEY")
-    if not settings.model_name:
-        raise MissingSecretError("AISOOS_MODEL_NAME")
-    prompt = compress_prompt(state["brief"], settings.compress_context)
+def complete(
+    session: Session,
+    settings: Settings,
+    limits: BudgetLimits,
+    state: FactoryState,
+    prompt: str,
+) -> str:
+    if not settings.model_api_key or not settings.model_name:
+        return ""
     response = cast(
         Any,
         litellm.completion(

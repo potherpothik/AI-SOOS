@@ -1,6 +1,6 @@
 # AI-SOOS
 
-AI-SOOS is a control plane for a software factory. A brief goes in. The system writes a specification, waits for a person to accept it, implements the change in an isolated workspace, runs tests and security checks, and prepares a pull request. Merge and production deploy stay manual.
+AI-SOOS is a control plane for a software factory. A brief goes in. The system writes a specification, waits for a person to accept it, builds a code graph of the workspace, implements the change, runs tests and security checks, and prepares a pull request. Merge and production deploy stay manual. A build does not read a skill file.
 
 ## Prerequisites
 
@@ -39,7 +39,9 @@ The API listens on `http://127.0.0.1:8000`. Check it:
 curl -s http://127.0.0.1:8000/health
 ```
 
-`GET /health` answers with no model key and no GitHub token. `POST /projects/{id}/generate` with `"mode": "model"` returns `{"missing": "AISOOS_MODEL_API_KEY"}` until that variable is set in `.env`. Opening a GitHub pull request returns `AISOOS_GITHUB_TOKEN` the same way. `"mode": "template"` builds from a template in this repository and does not call a model.
+`GET /health` and `POST /projects/{id}/generate` run with a blank `AISOOS_MODEL_API_KEY`. A blank key copies a template from this repository and does not call a model, including a request that says `"mode": "model"`. When both `AISOOS_MODEL_API_KEY` and `AISOOS_MODEL_NAME` are set, the model receives a Graphify query for the brief and its reply is written into the workspace as files. A high scan or review finding is sent back to that model until the retry cap. With a blank key the template stays, and delivery stays blocked until a person approves an exception. Opening a GitHub pull request returns `AISOOS_GITHUB_TOKEN` when that variable is empty.
+
+`GET /projects/{id}/cost` reports cost and tokens for each accepted task, including the full workspace size and the smaller graph-query size.
 
 ## Local services
 
@@ -66,16 +68,16 @@ Every variable is listed in `.env.example`.
 | Variable | Purpose |
 |---|---|
 | `AISOOS_DATABASE_URL` | Control-plane database. The default is local Postgres. |
-| `AISOOS_MODEL_API_KEY` | Required only when generation uses a model. |
-| `AISOOS_MODEL_NAME` | Model name passed to LiteLLM. |
+| `AISOOS_MODEL_API_KEY` | Leave blank. Generation does not ask for it. Set it, with `AISOOS_MODEL_NAME`, only when the factory should call a model. |
+| `AISOOS_MODEL_NAME` | Leave blank. The model name passed to LiteLLM when the key is set. |
 | `AISOOS_GITHUB_TOKEN` | Required only when the platform opens a pull request. |
 | `AISOOS_WORKSPACE_BACKEND` | `local` or `docker`. Docker runs the task container with no network and without the Docker socket. |
 
-Budgets live in `policies/model-budgets/budgets.yaml`. Tool permissions live in `policies/tool-permissions/roles.yaml`.
+`policies/model-budgets/budgets.yaml` records usage figures for the cost report. Those figures do not stop a task. Tool permissions live in `policies/tool-permissions/roles.yaml`.
 
 ## Security tools
 
-Semgrep is installed with the Python package. Gitleaks and Trivy are not part of the default install. Their pinned releases and the checksum check are in `docs/operations/security-tools.md`.
+Semgrep is installed with the Python package and runs on every workspace. Gitleaks and Trivy run when their binaries are present. Install them with `AISOOS_INSTALL_SECURITY_TOOLS=1 bash scripts/install-security-tools.sh`. A missing binary is recorded as a note and the task continues. Pinned releases and the checksum check are in `docs/operations/security-tools.md`.
 
 ## What a generated project can be
 

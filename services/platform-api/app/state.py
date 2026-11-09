@@ -10,6 +10,7 @@ class FactoryState(TypedDict):
     tests_passed: bool
     review_ok: bool
     scan_ok: bool
+    rewrite: bool
     retries: int
     max_retries: int
     tool_calls: int
@@ -54,6 +55,7 @@ def initial_state(
         tests_passed=False,
         review_ok=False,
         scan_ok=False,
+        rewrite=False,
         retries=0,
         max_retries=max_retries,
         tool_calls=0,

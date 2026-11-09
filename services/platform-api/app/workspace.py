@@ -51,10 +51,17 @@ def write_policy(workspace: Path, backend: str) -> None:
         "cpus: 1\n"
         "pids: 128\n"
         "docker_socket: false\n"
+        "ignore: graphify-out/\n"
         f"backend: {backend}\n"
         f"command: {command}\n"
     )
     (workspace / "WORKSPACE_POLICY.txt").write_text(text, encoding="utf-8")
+    ignore = workspace / ".gitignore"
+    current = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
+    for line in ("graphify-out/\n", ".scan/\n"):
+        if line not in current:
+            current += line
+    ignore.write_text(current, encoding="utf-8")
 
 
 def assert_isolation(isolation: str, untrusted: bool) -> None:
