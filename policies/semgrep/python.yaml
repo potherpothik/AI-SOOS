@@ -1,0 +1,11 @@
+rules:
+  - id: aisoos-eval
+    message: eval is not allowed in generated code
+    languages: [python]
+    severity: ERROR
+    pattern: eval(...)
+  - id: aisoos-exec
+    message: exec is not allowed in generated code
+    languages: [python]
+    severity: ERROR
+    pattern: exec(...)

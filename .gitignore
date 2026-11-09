@@ -14,4 +14,6 @@ AGENT.md
 # Study clones live in ../Clone-Repositories, ignored from the repository root.
 workspaces/
 artifacts/
+.tools/
+*.db
 .DS_Store

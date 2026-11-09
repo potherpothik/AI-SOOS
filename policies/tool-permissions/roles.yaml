@@ -22,3 +22,18 @@ roles:
   maintenance:
     tools: [read_logs, read_metrics, read_repo, run_tests, open_pull_request]
     deploy: false
+  frontend:
+    tools: [read_repo, edit_workspace, run_tests, run_lint]
+    writes: [workspace]
+    network: package_registries_only
+  backend:
+    tools: [read_repo, edit_workspace, run_tests, run_lint]
+    writes: [workspace]
+    network: package_registries_only
+  database:
+    tools: [read_repo, edit_workspace, run_tests]
+    writes: [workspace]
+  qa:
+    tools: [read_repo, run_tests, run_lint, write_findings]
+    writes: [findings/]
+    read_only_code: true

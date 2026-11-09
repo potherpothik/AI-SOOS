@@ -1,6 +1,6 @@
-from fastapi.testclient import TestClient
-
+from app.config import Settings
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health_reports_ok() -> None:
@@ -13,8 +13,6 @@ def test_health_reports_ok() -> None:
 
 
 def test_budget_defaults_are_bounded() -> None:
-    from app.config import Settings
-
     settings = Settings()
     assert settings.max_task_retries <= 5
     assert settings.monthly_budget_usd >= 0

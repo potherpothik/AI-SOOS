@@ -1,0 +1,8 @@
+# Representative tasks. A route is chosen from measured cost per successful run.
+tasks:
+  - name: health-endpoint
+    prompt: Add a health endpoint with a test.
+  - name: fix-failing-test
+    prompt: Repair one failing unit test without changing the public behavior.
+  - name: review-diff
+    prompt: Review a small diff and cite findings to changed lines.

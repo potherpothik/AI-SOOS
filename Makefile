@@ -7,7 +7,7 @@ test:
 	.venv/bin/python -m pytest
 
 lint:
-	.venv/bin/ruff check services/ scripts/
+	.venv/bin/ruff check services scripts alembic
 
 typecheck:
 	.venv/bin/mypy

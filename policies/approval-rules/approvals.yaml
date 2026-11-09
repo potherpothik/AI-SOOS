@@ -1,0 +1,8 @@
+# Actions that always wait for a person. The model cannot grant these.
+schema_version: 1
+always_require_human:
+  - merge
+  - production_release
+  - security_exception
+  - external_network
+  - credential_use

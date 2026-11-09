@@ -1,0 +1,10 @@
+# A release stops when a required check is false, unless an unexpired exception names it.
+schema_version: 1
+required:
+  - tests
+  - review
+  - scan
+human_actions:
+  - merge
+  - production_release
+  - security_exception

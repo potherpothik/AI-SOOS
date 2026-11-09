@@ -1,0 +1,14 @@
+# Checklist derived for AI-SOOS release review.
+# Method: OWASP ASVS. This file is the project's own checklist, not a copy of the standard.
+version: 1
+items:
+  - id: access-control
+    text: Privileged actions check a role in application code before they run.
+  - id: injection
+    text: Generated code has no eval or exec, and database access uses bound parameters.
+  - id: secrets
+    text: Provider keys and production credentials are not written into the workspace or git.
+  - id: data-protection
+    text: Logs and pull request bodies do not contain secret values.
+  - id: communications
+    text: Dynamic scanners run only against a host named in an authorization record.

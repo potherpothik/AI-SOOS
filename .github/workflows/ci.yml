@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install from a clean checkout
+        env:
+          AISOOS_SKIP_BROWSER: "1"
+        run: bash scripts/setup.sh
+      - name: Lint
+        run: .venv/bin/ruff check services scripts alembic
+      - name: Typecheck
+        run: .venv/bin/mypy
