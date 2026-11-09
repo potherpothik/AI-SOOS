@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: ai-soos
+Version: 0.1.0
+Summary: AI Software Orchestration Operating System: a controlled software factory
+Requires-Python: >=3.12
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn>=0.30
+Requires-Dist: pydantic>=2.8
+Requires-Dist: pydantic-settings>=2.4
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: alembic>=1.13
+Requires-Dist: psycopg[binary]>=3.2
+Requires-Dist: redis>=5.0
+Requires-Dist: httpx>=0.27
+Requires-Dist: litellm>=1.50
+Requires-Dist: langgraph>=0.2
+Requires-Dist: opentelemetry-sdk>=1.27
+Requires-Dist: playwright>=1.47
+Provides-Extra: security
+Requires-Dist: semgrep>=1.90; extra == "security"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: ruff>=0.6; extra == "dev"
+Requires-Dist: mypy>=1.11; extra == "dev"

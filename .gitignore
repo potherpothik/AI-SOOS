@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+*.log
+rules/
+AGENTS.md
+CLAUDE.md
+AGENT.md
+# Study clones live in ../Clone-Repositories, ignored from the repository root.
+workspaces/
+artifacts/
+.DS_Store

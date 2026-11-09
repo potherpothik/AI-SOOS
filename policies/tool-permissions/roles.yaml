@@ -1,0 +1,24 @@
+# Tool allowlist per agent role. A tool not listed for a role does not exist for that role.
+schema_version: 1
+roles:
+  requirements:
+    tools: [read_repo, read_attachment, write_docs]
+    writes: [docs/]
+  architect:
+    tools: [read_repo, write_docs]
+    writes: [docs/]
+  coding:
+    tools: [read_repo, edit_workspace, run_tests, run_lint]
+    writes: [workspace]
+    network: package_registries_only
+  reviewer:
+    tools: [read_diff, read_repo, write_findings]
+    writes: [findings/]
+    read_only_code: true
+  security_runner:
+    tools: [run_semgrep, run_gitleaks, run_trivy, run_zap_staging, run_nuclei_reviewed, run_api_tests_staging]
+    targets: authorization_record_only
+    network: scoped_to_targets
+  maintenance:
+    tools: [read_logs, read_metrics, read_repo, run_tests, open_pull_request]
+    deploy: false

@@ -1,0 +1,104 @@
+# Classification of the 75 supplied repositories (git-repositories.md, trending week of 2–9 Nov 2026).
+#
+# disposition:
+#   install   - a package is installed into the project virtualenv (library or defensive tool)
+#   binary    - a pinned release binary is installed into the security runner (defensive only)
+#   study     - cloned read-only into vendor/reference/ for review; never built or executed
+#   optional  - not needed for the core; add only for a specific product requirement
+#   excluded  - not installed or cloned into the platform; see reason
+#
+# Installing or cloning is done only by scripts/setup.sh and scripts/fetch-reference-repos.sh.
+# "pin" must be filled with a commit SHA after review; empty means not yet reviewed.
+
+schema_version: 1
+repositories:
+  # ---- AIOS ----
+  - {name: agent-desktop, url: "https://github.com/vercel-labs/agent-desktop", disposition: optional, pin: "", reason: "Desktop automation; only if a desktop workflow is required"}
+  - {name: AIOS, url: "https://github.com/agiresearch/AIOS", disposition: study, pin: "", reason: "OS-style agent concepts (model, memory, tools, scheduling)"}
+  - {name: CompanyOS, url: "https://github.com/kortix-ai/CompanyOS", disposition: study, pin: "", reason: "Multi-agent company/workspace concepts"}
+  - {name: deepseek-harness, url: "https://github.com/deepseek-ai/deepseek-harness", disposition: study, pin: "", reason: "Composable harness and plugin architecture"}
+  - {name: dsh-superagent-prototype, url: "https://github.com/deepseek-ai/dsh-superagent-prototype", disposition: study, pin: "", reason: "Autonomy concepts; not a platform component"}
+  - {name: herdr, url: "https://github.com/herdrdev/herdr", disposition: study, pin: "", reason: "Agent runtime concepts"}
+  - {name: orca, url: "https://github.com/stablyai/orca", disposition: study, pin: "", reason: "Fleet orchestration and workbench UX"}
+
+  # ---- AI agents ----
+  - {name: 500-AI-Agents-Projects, url: "https://github.com/ashishpatel26/500-AI-Agents-Projects", disposition: study, pin: "", reason: "Discovery catalogue only"}
+  - {name: agent-autoloop, url: "https://github.com/KKKKhazix/agent-autoloop", disposition: optional, pin: "", reason: "Background task patterns; unbounded loops are not allowed"}
+  - {name: Agent-Reach, url: "https://github.com/Panniantong/Agent-Reach", disposition: optional, pin: "", reason: "Scrapes social platforms that restrict automated access; confirm terms first"}
+  - {name: agentswarms, url: "https://github.com/AgentSwarms-fyi/agentswarms", disposition: study, pin: "", reason: "Agent plus data-layer concepts"}
+  - {name: andrej-karpathy-skills, url: "https://github.com/multica-ai/andrej-karpathy-skills", disposition: study, pin: "", reason: "Instruction-file pattern; copy only after license review"}
+  - {name: claude-mem, url: "https://github.com/thedotmack/claude-mem", disposition: study, pin: "", reason: "npm package installs hooks into coding-agent configuration; review hooks before any install"}
+  - {name: ECC, url: "https://github.com/affaan-m/ECC", disposition: study, pin: "", reason: "Large harness overlapping the platform runtime; do not install alongside another harness"}
+  - {name: gstack, url: "https://github.com/garrytan/gstack", disposition: study, pin: "", reason: "Role-based engineering workflow"}
+  - {name: OpenMausBot, url: "https://github.com/milind-soni/OpenMausBot", disposition: excluded, pin: "", reason: "Bots with virtual machines; outside software-factory scope"}
+  - {name: ponytail, url: "https://github.com/DietrichGebert/ponytail", disposition: study, pin: "", reason: "Diff-minimisation review ideas for the reviewer checklist"}
+  - {name: ragflow, url: "https://github.com/infiniflow/ragflow", disposition: optional, pin: "", reason: "Document RAG; run as a separate service only when retrieval needs it"}
+  - {name: rea, url: "https://github.com/morluto/rea", disposition: excluded, pin: "", reason: "Reverse engineers third-party applications; conflicts with licenses and terms of service; no legitimate platform need"}
+  - {name: sellbird, url: "https://github.com/ethanplusai/sellbird", disposition: excluded, pin: "", reason: "Automated cold outreach; anti-spam and data-protection obligations; separate product only"}
+  - {name: skills (Anthropic), url: "https://github.com/anthropics/skills", disposition: study, pin: "", reason: "Skill format and examples"}
+  - {name: skills (Matt Pocock), url: "https://github.com/mattpocock/skills", disposition: study, pin: "", reason: "TDD, review, diagnosis practices; pick one skills set to avoid overlap"}
+  - {name: superpowers, url: "https://github.com/obra/superpowers", disposition: study, pin: "", reason: "Engineering workflow skills"}
+  - {name: Tel-Agent, url: "https://github.com/Dpro-at/Tel-Agent", disposition: excluded, pin: "", reason: "Voice calling assistant; outside scope"}
+
+  # ---- System architecture ----
+  - {name: archify, url: "https://github.com/tt-a1i/archify", disposition: study, pin: "", reason: "Architecture diagram generation for the architect role"}
+  - {name: auto-ontology, url: "https://github.com/NVIDIA/auto-ontology", disposition: study, pin: "", reason: "Governed database semantics"}
+  - {name: graphify, url: "https://github.com/Graphify-Labs/graphify", disposition: install, pin: "", package: "pypi:graphifyy", reason: "Verified: PyPI package graphifyy lists this repository as source. Installs a skill for coding agents; review before enabling"}
+  - {name: spec-kit, url: "https://github.com/github/spec-kit", disposition: install, pin: "", package: "pypi:specify-cli", reason: "Specification-first tooling; PyPI package specify-cli is part of GitHub Spec Kit"}
+  - {name: system-design-primer, url: "https://github.com/donnemartin/system-design-primer", disposition: study, pin: "", reason: "Learning reference"}
+
+  # ---- Web development ----
+  - {name: agent-browser, url: "https://github.com/vercel-labs/agent-browser", disposition: study, pin: "", reason: "Browser automation pattern; Playwright is the platform's browser tool"}
+  - {name: astryx, url: "https://github.com/meta/astryx", disposition: study, pin: "", reason: "Design system; adopt only for React output after license check"}
+  - {name: awesome-design-md, url: "https://github.com/VoltAgent/awesome-design-md", disposition: study, pin: "", reason: "Style references; check each design system's license before copying"}
+  - {name: hallmark, url: "https://github.com/Nutlope/hallmark", disposition: study, pin: "", reason: "Browser-checked design workflow"}
+  - {name: impeccable, url: "https://github.com/pbakaus/impeccable", disposition: study, pin: "", reason: "Design skill; choose one design skill to avoid overlap"}
+  - {name: replica-skill, url: "https://github.com/Jakeschincariol/replica-skill", disposition: excluded, pin: "", reason: "Rebuilds existing apps' interfaces; copyright and trademark risk"}
+  - {name: Scrapling, url: "https://github.com/D4Vinci/Scrapling", disposition: optional, pin: "", reason: "Scraping with stealth browsers; only for documented research needs with site terms checked"}
+  - {name: taste-skill, url: "https://github.com/Leonxlnx/taste-skill", disposition: study, pin: "", reason: "Frontend visual guidance; overlaps other design skills"}
+  - {name: ui-ux-pro-max-skill, url: "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill", disposition: study, pin: "", reason: "Design system and UX rules"}
+
+  # ---- Models and routing ----
+  - {name: colibri, url: "https://github.com/JustVugg/colibri", disposition: optional, pin: "", reason: "Local inference research; not a first-version dependency"}
+  - {name: freellmapi, url: "https://github.com/tashfeenahmed/freellmapi", disposition: optional, pin: "", reason: "Evaluate privacy, reliability, and terms before any use; never for confidential code"}
+  - {name: G0DM0D3, url: "https://github.com/elder-plinius/G0DM0D3", disposition: excluded, pin: "", reason: "Prompt collection intended to reduce model restrictions; not a platform component"}
+  - {name: headroom, url: "https://github.com/headroomlabs-ai/headroom", disposition: install, pin: "", package: "pypi:headroom-ai", reason: "Verified: PyPI package headroom-ai lists this repository as source. Context compression for token reduction; benchmark before routing decisions"}
+  - {name: OmniRoute, url: "https://github.com/cheaper-inference/OmniRoute", disposition: study, pin: "", reason: "Compare with LiteLLM in the gateway benchmark"}
+  - {name: rtk, url: "https://github.com/rtk-ai/rtk", disposition: study, pin: "", reason: "Command-output filtering idea. The npm package named rtk-cli is unrelated (points to another repository), so it is not installed"}
+
+  # ---- Media ----
+  - {name: ArcReel, url: "https://github.com/ArcReel/ArcReel", disposition: optional, pin: "", reason: "Separate product capability; not part of the factory core"}
+  - {name: brag, url: "https://github.com/latent-spaces/brag", disposition: optional, pin: "", reason: "Separate product capability"}
+  - {name: lemo-opuscar, url: "https://github.com/lemomo-ai/lemo-opuscar", disposition: optional, pin: "", reason: "Separate product capability"}
+  - {name: MoneyPrinterTurbo, url: "https://github.com/harry0703/MoneyPrinterTurbo", disposition: optional, pin: "", reason: "Separate product capability"}
+
+  # ---- Security (defensive) ----
+  - {name: gitleaks, url: "https://github.com/gitleaks/gitleaks", disposition: binary, pin: "", reason: "Secret scanning in the security runner"}
+  - {name: semgrep, url: "https://github.com/semgrep/semgrep", disposition: install, pin: "", package: "pypi:semgrep", reason: "SAST in the security runner"}
+  - {name: trivy, url: "https://github.com/aquasecurity/trivy", disposition: binary, pin: "", reason: "Dependency, container, IaC scanning"}
+  - {name: testssl.sh, url: "https://github.com/testssl/testssl.sh", disposition: binary, pin: "", reason: "TLS checks on owned, authorized staging endpoints"}
+  - {name: nuclei, url: "https://github.com/projectdiscovery/nuclei", disposition: binary, pin: "", reason: "Reviewed templates only, owned staging endpoints only"}
+  - {name: nuclei-templates, url: "https://github.com/projectdiscovery/nuclei-templates", disposition: optional, pin: "", reason: "Install only reviewed templates with nuclei"}
+  - {name: zaproxy, url: "https://github.com/zaproxy/zaproxy", disposition: binary, pin: "", reason: "Authenticated DAST against authorized staging only"}
+  - {name: wstg, url: "https://github.com/OWASP/wstg", disposition: study, pin: "", reason: "Test methodology reference"}
+  - {name: CheatSheetSeries, url: "https://github.com/OWASP/CheatSheetSeries", disposition: study, pin: "", reason: "Secure implementation reference"}
+  - {name: web-check, url: "https://github.com/lissy93/web-check", disposition: optional, pin: "", reason: "Domain audit for owned staging; not a platform dependency"}
+  - {name: awesome-bugbounty-tools, url: "https://github.com/vavkamil/awesome-bugbounty-tools", disposition: excluded, pin: "", reason: "Reference index of attack tools; not cloned into the platform"}
+  - {name: Hacking-Tools, url: "https://github.com/aw-junaid/Hacking-Tools", disposition: excluded, pin: "", reason: "Index of offensive tools; not cloned into the platform"}
+  - {name: amass, url: "https://github.com/owasp-amass/amass", disposition: excluded, pin: "", reason: "Attack-surface enumeration against third parties"}
+  - {name: dalfox, url: "https://github.com/hahwul/dalfox", disposition: excluded, pin: "", reason: "XSS exploitation tool"}
+  - {name: Decepticon, url: "https://github.com/BitterSecurity/Decepticon", disposition: excluded, pin: "", reason: "Autonomous red-team agent; offensive"}
+  - {name: ffuf, url: "https://github.com/ffuf/ffuf", disposition: excluded, pin: "", reason: "Fuzzer; offensive"}
+  - {name: httpx, url: "https://github.com/projectdiscovery/httpx", disposition: excluded, pin: "", reason: "Host probing; reconnaissance tool"}
+  - {name: katana, url: "https://github.com/projectdiscovery/katana", disposition: excluded, pin: "", reason: "Crawler for reconnaissance"}
+  - {name: nikto, url: "https://github.com/sullo/nikto", disposition: excluded, pin: "", reason: "Scanner for third-party servers; outside the defensive runner"}
+  - {name: pentagi, url: "https://github.com/vxcontrol/pentagi", disposition: excluded, pin: "", reason: "Autonomous penetration-testing agents; offensive"}
+  - {name: subfinder, url: "https://github.com/projectdiscovery/subfinder", disposition: excluded, pin: "", reason: "Subdomain reconnaissance"}
+  - {name: wapiti, url: "https://github.com/wapiti-scanner/wapiti", disposition: excluded, pin: "", reason: "Black-box attack scanner; outside the defensive runner"}
+
+  # ---- Apps and tools ----
+  - {name: ConvertX, url: "https://github.com/C4illin/ConvertX", disposition: optional, pin: "", reason: "File conversion; only for a product requirement"}
+  - {name: go-whatsapp-web-multidevice, url: "https://github.com/aldinokemal/go-whatsapp-web-multidevice", disposition: optional, pin: "", reason: "Messaging integration; only for a product requirement; check platform terms"}
+  - {name: mailflare, url: "https://github.com/hieunc229/mailflare", disposition: optional, pin: "", reason: "Mail product; only for a product requirement"}
+  - {name: react-native-mock-location-detector (fork), url: "https://github.com/xDAnkit/react-native-mock-location-detector", disposition: excluded, pin: "", reason: "Fork; use the upstream package instead"}
+  - {name: react-native-mock-location-detector (upstream), url: "https://github.com/adkandari/react-native-mock-location-detector", disposition: optional, pin: "", reason: "Upstream package for mock-location detection, if a mobile product needs it"}
